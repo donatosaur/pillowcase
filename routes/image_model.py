@@ -4,6 +4,7 @@
 
 from uuid import UUID
 import pathlib
+import traceback
 from pydantic import BaseModel, validator
 import PIL
 import PIL.Image as Image
@@ -61,5 +62,12 @@ class PILOpen:
     def __enter__(self):
         return self.image
 
-    def __exit__(self):
-        self.image.close()
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if isinstance(exc_val, ValueError):
+            # likely the file pointer was already closed/destroyed; log it and return true so we don't
+            # propagate the error back up otherwise the client will receive a 500
+            print("ValueError in image_model.PILOpen.__exit__")
+            traceback.print_tb(exc_tb)
+            return True
+        if self.image is not None:
+            self.image.close()
