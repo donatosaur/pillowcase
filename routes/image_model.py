@@ -1,16 +1,14 @@
 # Author:      Donato Quartuccia
-# Modified:    2022-02-23
+# Modified:    2022-02-25
 # Description: Image model
 
 from uuid import UUID
 import pathlib
 from pydantic import BaseModel, validator
-
-# pillow imports
 import PIL
 import PIL.Image as Image
 
-
+# exports
 __all__ = ["ImageModel", "PILOpen", "ImageError"]
 
 
@@ -21,9 +19,12 @@ class ImageModel(BaseModel):
     image_id: UUID | str
 
     @validator("image_id")
-    def validate_uuid(cls, image_id: str):
+    def validate_uuid(cls, image_id: str | UUID):
         """Pydantic validator; class method see https://pydantic-docs.helpmanual.io/usage/validators/"""
-        return UUID(image_id, version=4)
+        if isinstance(image_id, UUID):
+            return image_id
+        else:
+            return UUID(str(image_id), version=4)
 
 
 # ---------------------------------------------- Context Manager ----------------------------------------------

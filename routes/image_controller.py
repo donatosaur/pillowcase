@@ -92,8 +92,6 @@ async def post_image(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Maximum file size exceeded: {PIL.Image.MAX_IMAGE_PIXELS} pixels"
         )
-    finally:
-        await image_file.close()
 
 
 # ------------------------------------------------- READ --------------------------------------------------
