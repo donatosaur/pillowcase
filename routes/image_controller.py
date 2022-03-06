@@ -1,5 +1,5 @@
 # Author:      Donato Quartuccia
-# Modified:    2022-02-25
+# Modified:    2022-03-06
 # Description: Image controller
 
 import uuid
@@ -21,7 +21,6 @@ from .image_model import ImageModel, PILOpen, ImageError
 from config import get_env
 
 
-# create router; the tags metadata is for FastAPI's doc generator (turned off for now to meet specs)
 router = APIRouter(prefix="/image", tags=["image"])
 
 
@@ -34,22 +33,59 @@ LOCK_ASPECT_RATIO: Final = "True to lock the aspect ratio (default). False to le
 
 
 # ------------------------------------------------- Helpers --------------------------------------------------
-# Capitalization for ImageResponse here is intentional. FastAPI's responses are all callable classes. Ideally,
-# this would be as well, but in the interest of time a function works fine.
+# Capitalization for ImageResponse is intentional: FastAPI's responses are all callable classes
 def ImageResponse(image: Image) -> Response:
     """
     Helper for sending PIL image file responses
     :param image: the PIL image file to send
     """
-    # the implementation of PIL.Image.tobytes() doesn't work correctly for compressed image formats like PNG; instead,
-    # the Pillow documentation suggests writing to a file-like object (or buffer) instead; in this case, a buffer
-    # should work fine (see https://pillow.readthedocs.io/en/stable/reference/Image.html?highlight=tobytes())
+    # the implementation of PIL.Image.tobytes() does not work correctly for compressed image formats; instead, we must
+    # use a file-like object (see https://pillow.readthedocs.io/en/stable/reference/Image.html?highlight=tobytes())
     buffer = BytesIO()
     try:
         image.save(buffer, format="png")
         return Response(buffer.getvalue(), media_type="image/png")
     finally:
         buffer.close()
+
+
+def get_unique_image_id(image_directory) -> uuid:
+    """
+    Generates a unique UUID for a file in image_directory
+    :param image_directory: directory to be checked for UUID collisions
+    """
+    image_id = uuid.uuid4()
+    while glob.glob(f"{image_directory}/{image_id}*"):
+        image_id = uuid.uuid4()
+    return image_id
+
+
+def validate_image_file_request(image_file: UploadFile):
+    """
+    Validates the specified image file
+    :raise HTTPException: if the specified image_file does not exist or has an invalid MIME type
+    """
+    if not image_file:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing file")
+    elif not image_file.content_type.startswith("image/"):
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Invalid content type")
+
+
+def raise_HTTPException_from_PIL_image(error: Exception):
+    """
+    :param error: PIL.UnidentifiedImageError or PIL.Image.DecompressionBombWarning
+    :raise HTTPException: an HTTPException response based on
+    """
+    if isinstance(error, PIL.UnidentifiedImageError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported file type")
+    elif isinstance(error, PIL.Image.DecompressionBombWarning):
+        # see the discussion on decompression: https://pillow.readthedocs.io/en/stable/reference/Image.html#functions
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Maximum file size exceeded: {PIL.Image.MAX_IMAGE_PIXELS} pixels"
+        )
+    else:
+        raise from error
 
 
 # -------------------------------------------------- CREATE --------------------------------------------------
@@ -64,34 +100,17 @@ async def post_image(
     https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types and the linked IANA page)
     """
     image_directory = env.IMAGE_DIRECTORY
-
-    # validate the request
-    if not image_file:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing file")
-    elif not image_file.content_type.startswith("image/"):
-        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Invalid content type")
+    validate_image_file_request(image_file)
 
     # read the bytestream from the request and attempt to open it as an image
     try:
         with image_from_bytestream(image_file.file) as image_file:
-            # create a random and unique id for the file and store it
-            image_id = uuid.uuid4()
-
-            while glob.glob(f"{image_directory}/{image_id}*"):
-                # pretty unlikely, but possible
-                image_id = uuid.uuid4()
+            image_id = get_unique_image_id(image_directory)
             image_file.save(f"{image_directory}/{image_id}.png", "png")
-            # return the string representation of the image UUID (in hex)
-            return {"image_id": str(image_id)}
-    except PIL.UnidentifiedImageError:
-        # PIL couldn't determine the correct type of file (it's an unsupported type)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported file type")
-    except PIL.Image.DecompressionBombWarning:
-        # see the discussion on decompression: https://pillow.readthedocs.io/en/stable/reference/Image.html#functions
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Maximum file size exceeded: {PIL.Image.MAX_IMAGE_PIXELS} pixels"
-        )
+            return {"image_id": str(image_id)}  # UUID -> hex
+    except (PIL.UnidentifiedImageError, PIL.Image.DecompressionBombWarning) as error:
+        raise_HTTPException_from_PIL_image(error)
+
 
 
 # ------------------------------------------------- READ --------------------------------------------------
@@ -121,11 +140,9 @@ async def get_rotated_image(
     image_directory = env.IMAGE_DIRECTORY
     try:
         with PILOpen(image_directory, f"{image_id}.png") as image:
-            # any multiple of 90 is valid, but we can discard any rotations that wrap around the circle
-            degrees %= 360
+            degrees %= 360  # discard rotations that wrap around the circle
             if direction not in {'L', 'l'}:
-                # default rotation is left (cw); reverse the degrees around the circle for right (cw)
-                degrees = abs(360 - degrees)
+                degrees = abs(360 - degrees)  # default rotation is ccw (left); reverse degrees for cw
             match degrees:
                 case 90:
                     image = image.transpose(PIL.Image.ROTATE_90)

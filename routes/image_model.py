@@ -1,5 +1,5 @@
 # Author:      Donato Quartuccia
-# Modified:    2022-02-25
+# Modified:    2022-03-06
 # Description: Image model
 
 from uuid import UUID
@@ -36,10 +36,7 @@ class ImageError(Exception):
 
 
 class PILOpen:
-    """
-    Context manager to handle opening PIL image files from disk;
-    see https://docs.python.org/3/library/contextlib.html
-    """
+    """Context manager to handle opening PIL image files from disk"""
 
     def __init__(self, directory_path: str, filename: str):
         """
@@ -65,7 +62,7 @@ class PILOpen:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if isinstance(exc_val, ValueError):
             # likely the file pointer was already closed/destroyed; log it and return true so we don't
-            # propagate the error back up otherwise the client will receive a 500
+            # propagate the error back up, otherwise the client will receive a 500
             print("ValueError in image_model.PILOpen.__exit__")
             traceback.print_tb(exc_tb)
             return True
