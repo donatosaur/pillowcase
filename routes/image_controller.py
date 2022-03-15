@@ -33,7 +33,6 @@ LOCK_ASPECT_RATIO: Final = "True to lock the aspect ratio (default). False to le
 
 
 # -------------------------------------------- Helpers ---------------------------------------------
-# Capitalization for ImageResponse is intentional: FastAPI's responses are all callable classes
 def ImageResponse(image: Image) -> Response:
     """
     Helper for sending PIL image file responses
@@ -91,7 +90,7 @@ def raise_HTTPException_from_PIL_image(error: Exception):
             detail=f"Maximum file size exceeded: {PIL.Image.MAX_IMAGE_PIXELS} pixels"
         )
     else:
-        raise from error  # unhandled; propagate up and return a 500
+        raise  # unhandled; propagate up and return a 500
 
 
 # --------------------------------------------- CREATE ---------------------------------------------
