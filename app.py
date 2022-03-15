@@ -1,5 +1,5 @@
 # Author:      Donato Quartuccia
-# Modified:    2022-02-23
+# Modified:    2022-03-15
 # Description: App configuration
 
 import uvicorn
@@ -22,14 +22,12 @@ app = FastAPI(
       "name": "Apache License, Version 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
     },
-    # docs_url=None,
-    # redoc_url=None,
 )
 
 # set CORS to allow requests for anything on the same host
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[f"http://{get_env().HOST}", f"http://{get_env().HOST}:P{get_env().PORT}"],
+    allow_origins=[f"http://{get_env().HOST}", f"http://{get_env().HOST}:{get_env().PORT}"],
     allow_methods=["GET", "POST"],
     allow_headers=['*'],
 )

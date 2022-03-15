@@ -1,5 +1,5 @@
 # Author:      Donato Quartuccia
-# Modified:    2022-03-06
+# Modified:    2022-03-15
 # Description: Image model
 
 from uuid import UUID
@@ -13,7 +13,7 @@ import PIL.Image as Image
 __all__ = ["ImageModel", "PILOpen", "ImageError"]
 
 
-# --------------------------------------------------- Models ---------------------------------------------------
+# --------------------------------------------- Models ---------------------------------------------
 
 class ImageModel(BaseModel):
     """Model for image data"""
@@ -21,14 +21,14 @@ class ImageModel(BaseModel):
 
     @validator("image_id")
     def validate_uuid(cls, image_id: str | UUID):
-        """Pydantic validator; class method see https://pydantic-docs.helpmanual.io/usage/validators/"""
+        """Pydantic validator class method: see pydantic-docs.helpmanual.io/usage/validators/"""
         if isinstance(image_id, UUID):
             return image_id
         else:
             return UUID(str(image_id), version=4)
 
 
-# ---------------------------------------------- Context Manager ----------------------------------------------
+# ---------------------------------------- Context Manager -----------------------------------------
 
 class ImageError(Exception):
     """Raised when an Image cannot be opened"""
@@ -61,8 +61,8 @@ class PILOpen:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if isinstance(exc_val, ValueError):
-            # likely the file pointer was already closed/destroyed; log it and return true so we don't
-            # propagate the error back up, otherwise the client will receive a 500
+            # likely the file pointer was already closed/destroyed; log it and return true so we
+            # don't  propagate the error back up (otherwise the client will receive a 500)
             print("ValueError in image_model.PILOpen.__exit__")
             traceback.print_tb(exc_tb)
             return True
